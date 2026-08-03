@@ -1,10 +1,23 @@
 <script lang="ts">
+  import TidyIcon from "../TidyIcon.svelte";
+  import { addIcon, attunementIcon, carryingCapacityIcon, expandIcon, favoriteIcon, filterIcon, moreOptionsIcon, searchIcon, settingsIcon, sortIcon } from "../../icons/tidy-icons";
   import type {
-    FoundryActor,
     FoundryActorItem
   } from "../../models/foundry-actor";
 
-  export let actor: FoundryActor;
+  import type {
+    StoredCharacter
+  } from "../../models/stored-character";
+
+  import {
+    getItemImageSrc
+  } from "../../assets/image-resolver";
+
+  import ItemDetailsDialog from "../ItemDetailsDialog.svelte";
+
+  export let character: StoredCharacter;
+
+  $: actor = character.actor;
 
   type UnknownRecord = Record<string, unknown>;
 
@@ -14,13 +27,18 @@
     items: FoundryActorItem[];
   }
 
+  interface ValueParts {
+    value: string;
+    unit: string;
+  }
+
   const inventoryTypes = [
     "weapon",
     "equipment",
     "consumable",
     "tool",
-    "loot",
-    "container"
+    "container",
+    "loot"
   ];
 
   const groupOrder = [
@@ -41,50 +59,52 @@
     loot: "Loot"
   };
 
-  const propertyLabels: Record<string, string> = {
-    amm: "Ammunition",
-    fin: "Finesse",
-    fir: "Firearm",
-    foc: "Focus",
-    hvy: "Heavy",
-    lgt: "Light",
-    lod: "Loading",
-    mgc: "Magical",
-    rch: "Reach",
-    rel: "Reload",
-    ret: "Returning",
-    spc: "Special",
-    thr: "Thrown",
-    two: "Two-Handed",
-    ver: "Versatile"
-  };
+  let searchText = "";
+  let equippedOnly = false;
+  let selectedItem: FoundryActorItem | null = null;
 
-  const masteryLabels: Record<string, string> = {
-    cleave: "Cleave",
-    graze: "Graze",
-    nick: "Nick",
-    push: "Push",
-    sap: "Sap",
-    slow: "Slow",
-    topple: "Topple",
-    vex: "Vex"
-  };
-
-  $: inventory = actor.items
-    .filter((item) => inventoryTypes.includes(item.type))
+  $: allInventory = actor.items
+    .filter((item) =>
+      inventoryTypes.includes(item.type)
+    )
     .sort(sortInventoryItems);
 
-  $: groups = createGroups(inventory);
+  $: visibleInventory =
+    allInventory.filter(matchesFilters);
 
-  $: itemNamesById = new Map(
-    actor.items
-      .filter((item) => item._id)
-      .map((item) => [item._id as string, item.name])
+  $: groups = createGroups(
+    visibleInventory
   );
 
-  $: totalWeight = calculateTotalWeight(inventory);
+  $: strengthScore =
+    getAbilityScore("str");
 
-  function isRecord(value: unknown): value is UnknownRecord {
+  $: sizeLabel =
+    getSizeLabel();
+
+  $: carryingCapacity =
+    strengthScore * 15;
+
+  $: totalWeight =
+    calculateTotalWeight(
+      allInventory
+    );
+
+  $: encumbrancePercent =
+    carryingCapacity > 0
+      ? Math.min(
+          100,
+          totalWeight /
+            carryingCapacity *
+            100
+        )
+      : 0;
+
+  $: currency = getCurrency();
+
+  function isRecord(
+    value: unknown
+  ): value is UnknownRecord {
     return (
       typeof value === "object" &&
       value !== null &&
@@ -92,7 +112,9 @@
     );
   }
 
-  function asNumber(value: unknown): number | undefined {
+  function asNumber(
+    value: unknown
+  ): number | undefined {
     if (
       typeof value === "number" &&
       Number.isFinite(value)
@@ -114,7 +136,9 @@
     return undefined;
   }
 
-  function asString(value: unknown): string | undefined {
+  function asString(
+    value: unknown
+  ): string | undefined {
     return typeof value === "string"
       ? value
       : undefined;
@@ -137,12 +161,76 @@
     return current;
   }
 
+  function handleSearch(
+    event: Event
+  ): void {
+    const input =
+      event.currentTarget as HTMLInputElement;
+
+    searchText = input.value;
+  }
+
+  function toggleEquipped(): void {
+    equippedOnly = !equippedOnly;
+  }
+
+  function openItemDetails(
+    item: FoundryActorItem
+  ): void {
+    selectedItem = item;
+  }
+
+  function handleItemKeydown(
+    event: KeyboardEvent,
+    item: FoundryActorItem
+  ): void {
+    if (
+      event.key !== "Enter" &&
+      event.key !== " "
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    openItemDetails(item);
+  }
+
+  function matchesFilters(
+    item: FoundryActorItem
+  ): boolean {
+    const search =
+      searchText
+        .trim()
+        .toLowerCase();
+
+    if (
+      search &&
+      !item.name
+        .toLowerCase()
+        .includes(search)
+    ) {
+      return false;
+    }
+
+    if (
+      equippedOnly &&
+      item.system?.equipped !== true
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
   function sortInventoryItems(
     left: FoundryActorItem,
     right: FoundryActorItem
   ): number {
-    const leftIndex = groupOrder.indexOf(left.type);
-    const rightIndex = groupOrder.indexOf(right.type);
+    const leftIndex =
+      groupOrder.indexOf(left.type);
+
+    const rightIndex =
+      groupOrder.indexOf(right.type);
 
     const normalizedLeft =
       leftIndex === -1
@@ -154,11 +242,19 @@
         ? groupOrder.length
         : rightIndex;
 
-    if (normalizedLeft !== normalizedRight) {
-      return normalizedLeft - normalizedRight;
+    if (
+      normalizedLeft !==
+      normalizedRight
+    ) {
+      return (
+        normalizedLeft -
+        normalizedRight
+      );
     }
 
-    return left.name.localeCompare(right.name);
+    return left.name.localeCompare(
+      right.name
+    );
   }
 
   function createGroups(
@@ -167,25 +263,82 @@
     return groupOrder
       .map((type) => ({
         id: type,
-        label: groupLabels[type] ?? formatType(type),
-        items: items.filter((item) => item.type === type)
+        label:
+          groupLabels[type] ??
+          formatLabel(type),
+        items: items.filter(
+          (item) =>
+            item.type === type
+        )
       }))
-      .filter((group) => group.items.length > 0);
+      .filter(
+        (group) =>
+          group.items.length > 0
+      );
   }
 
-  function getQuantity(item: FoundryActorItem): number {
-    return asNumber(item.system?.quantity) ?? 1;
+  function getAbilityScore(
+    ability: string
+  ): number {
+    return (
+      asNumber(
+        getNestedValue(
+          actor.system,
+          "abilities",
+          ability,
+          "value"
+        )
+      ) ?? 10
+    );
+  }
+
+  function getSizeLabel():
+    string {
+    const size = asString(
+      getNestedValue(
+        actor.system,
+        "traits",
+        "size"
+      )
+    );
+
+    const labels:
+      Record<string, string> = {
+        tiny: "Tiny",
+        sm: "Small",
+        med: "Medium",
+        lg: "Large",
+        huge: "Huge",
+        grg: "Gargantuan"
+      };
+
+    return size
+      ? labels[size] ??
+          formatLabel(size)
+      : "Medium";
+  }
+
+  function getQuantity(
+    item: FoundryActorItem
+  ): number {
+    return (
+      asNumber(
+        item.system?.quantity
+      ) ?? 1
+    );
   }
 
   function getWeightValue(
     item: FoundryActorItem
-  ): number | undefined {
-    return asNumber(
-      getNestedValue(
-        item.system,
-        "weight",
-        "value"
-      )
+  ): number {
+    return (
+      asNumber(
+        getNestedValue(
+          item.system,
+          "weight",
+          "value"
+        )
+      ) ?? 0
     );
   }
 
@@ -203,39 +356,40 @@
     );
   }
 
-  function getWeightLabel(
+  function getWeightParts(
     item: FoundryActorItem
-  ): string {
-    const weight = getWeightValue(item);
-
-    if (weight === undefined) {
-      return "—";
-    }
-
-    return `${formatNumber(weight)} ${getWeightUnits(item)}`;
+  ): ValueParts {
+    return {
+      value: formatNumber(
+        getWeightValue(item)
+      ),
+      unit: getWeightUnits(item)
+    };
   }
 
   function calculateTotalWeight(
     items: FoundryActorItem[]
   ): number {
-    return items.reduce((total, item) => {
-      const weight = getWeightValue(item) ?? 0;
-      const quantity = getQuantity(item);
-
-      return total + weight * quantity;
-    }, 0);
+    return items.reduce(
+      (total, item) =>
+        total +
+        getWeightValue(item) *
+          getQuantity(item),
+      0
+    );
   }
 
-  function getPriceLabel(
+  function getPriceParts(
     item: FoundryActorItem
-  ): string {
-    const value = asNumber(
-      getNestedValue(
-        item.system,
-        "price",
-        "value"
-      )
-    );
+  ): ValueParts {
+    const value =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "price",
+          "value"
+        )
+      );
 
     const denomination =
       asString(
@@ -246,84 +400,256 @@
         )
       ) ?? "gp";
 
-    if (value === undefined) {
+    return {
+      value:
+        value === undefined
+          ? "—"
+          : formatNumber(value),
+      unit:
+        value === undefined
+          ? ""
+          : denomination.toUpperCase()
+    };
+  }
+
+  function getUsesLabel(
+    item: FoundryActorItem
+  ): string {
+    const maximum =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "uses",
+          "max"
+        )
+      );
+
+    const spent =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "uses",
+          "spent"
+        )
+      ) ?? 0;
+
+    if (
+      maximum === undefined ||
+      maximum <= 0
+    ) {
       return "—";
     }
 
-    return `${formatNumber(value)} ${denomination}`;
-  }
-
-  function getItemSubtype(
-    item: FoundryActorItem
-  ): string {
-    const value =
-      asString(
-        getNestedValue(
-          item.system,
-          "type",
-          "value"
-        )
-      ) ?? "";
-
-    const subtype =
-      asString(
-        getNestedValue(
-          item.system,
-          "type",
-          "subtype"
-        )
-      ) ?? "";
-
-    const baseItem =
-      asString(
-        getNestedValue(
-          item.system,
-          "type",
-          "baseItem"
-        )
-      ) ?? "";
-
     return (
-      subtype ||
-      value ||
-      baseItem ||
-      formatType(item.type)
+      `${Math.max(
+        0,
+        maximum - spent
+      )} / ${maximum}`
     );
   }
 
-  function getContainerName(
+  function getFirstActivity(
     item: FoundryActorItem
-  ): string | undefined {
-    const containerId =
-      asString(item.system?.container);
+  ): UnknownRecord | undefined {
+    const activities =
+      item.system?.activities;
 
-    if (!containerId) {
+    if (!isRecord(activities)) {
       return undefined;
     }
 
-    return itemNamesById.get(containerId) ?? containerId;
+    return Object.values(
+      activities
+    ).find(isRecord);
+  }
+
+  function getActivationLabel(
+    item: FoundryActorItem
+  ): string {
+    const activity =
+      getFirstActivity(item);
+
+    const activation =
+      asString(
+        getNestedValue(
+          activity,
+          "activation",
+          "type"
+        )
+      );
+
+    const labels:
+      Record<string, string> = {
+        action: "A",
+        bonus: "BA",
+        reaction: "R",
+        minute: "Min",
+        hour: "Hr",
+        special: "S"
+      };
+
+    return activation
+      ? labels[activation] ??
+          activation.toUpperCase()
+      : "—";
+  }
+
+  function getWeaponAbility(
+    item: FoundryActorItem
+  ): string {
+    const activity =
+      getFirstActivity(item);
+
+    const activityAbility =
+      asString(
+        getNestedValue(
+          activity,
+          "attack",
+          "ability"
+        )
+      );
+
+    if (activityAbility) {
+      return activityAbility;
+    }
+
+    const configured =
+      asString(
+        item.system?.ability
+      );
+
+    if (configured) {
+      return configured;
+    }
+
+    const properties =
+      item.system?.properties;
+
+    if (
+      Array.isArray(properties) &&
+      properties.includes("fin")
+    ) {
+      const strength =
+        getAbilityScore("str");
+
+      const dexterity =
+        getAbilityScore("dex");
+
+      return dexterity > strength
+        ? "dex"
+        : "str";
+    }
+
+    const rangeValue =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "range",
+          "value"
+        )
+      );
+
+    if (
+      rangeValue !== undefined &&
+      rangeValue > 5
+    ) {
+      return "dex";
+    }
+
+    return "str";
+  }
+
+  function getCharacterLevel():
+    number {
+    return actor.items
+      .filter(
+        (item) =>
+          item.type === "class"
+      )
+      .reduce(
+        (total, item) =>
+          total +
+          (
+            asNumber(
+              item.system?.levels
+            ) ?? 0
+          ),
+        0
+      );
+  }
+
+  function getProficiencyBonus():
+    number {
+    const level =
+      Math.max(
+        1,
+        getCharacterLevel()
+      );
+
+    return (
+      2 +
+      Math.floor(
+        (level - 1) / 4
+      )
+    );
+  }
+
+  function getRollModifier(
+    item: FoundryActorItem
+  ): string {
+    if (item.type !== "weapon") {
+      return "—";
+    }
+
+    const ability =
+      getWeaponAbility(item);
+
+    const abilityModifier =
+      Math.floor(
+        (
+          getAbilityScore(ability) -
+          10
+        ) / 2
+      );
+
+    const magicalBonus =
+      asNumber(
+        item.system?.magicalBonus
+      ) ?? 0;
+
+    return formatSignedNumber(
+      abilityModifier +
+      getProficiencyBonus() +
+      magicalBonus
+    );
   }
 
   function getDamageLabel(
     item: FoundryActorItem
-  ): string | undefined {
-    const number = asNumber(
-      getNestedValue(
-        item.system,
-        "damage",
-        "base",
-        "number"
-      )
-    );
+  ): string {
+    if (item.type !== "weapon") {
+      return "—";
+    }
 
-    const denomination = asNumber(
-      getNestedValue(
-        item.system,
-        "damage",
-        "base",
-        "denomination"
-      )
-    );
+    const number =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "damage",
+          "base",
+          "number"
+        )
+      );
+
+    const denomination =
+      asNumber(
+        getNestedValue(
+          item.system,
+          "damage",
+          "base",
+          "denomination"
+        )
+      );
 
     const bonus =
       asString(
@@ -335,323 +661,410 @@
         )
       ) ?? "";
 
-    const types = getNestedValue(
-      item.system,
-      "damage",
-      "base",
-      "types"
-    );
-
     if (
       number === undefined ||
       denomination === undefined ||
       denomination <= 0
     ) {
-      return undefined;
+      return "—";
     }
 
-    const formula =
-      `${number}d${denomination}${bonus}`;
+    const ability =
+      getWeaponAbility(item);
 
-    const damageTypes = Array.isArray(types)
-      ? types
-          .filter(
-            (value): value is string =>
-              typeof value === "string"
-          )
-          .map(formatType)
-          .join(", ")
-      : "";
-
-    return damageTypes
-      ? `${formula} ${damageTypes}`
-      : formula;
-  }
-
-  function getRangeLabel(
-    item: FoundryActorItem
-  ): string | undefined {
-    const range = asNumber(
-      getNestedValue(
-        item.system,
-        "range",
-        "value"
-      )
-    );
-
-    const longRange = asNumber(
-      getNestedValue(
-        item.system,
-        "range",
-        "long"
-      )
-    );
-
-    const reach = asNumber(
-      getNestedValue(
-        item.system,
-        "range",
-        "reach"
-      )
-    );
-
-    const units =
-      asString(
-        getNestedValue(
-          item.system,
-          "range",
-          "units"
-        )
-      ) ?? "ft";
-
-    if (range !== undefined && longRange !== undefined) {
-      return `${range}/${longRange} ${units}`;
-    }
-
-    if (range !== undefined) {
-      return `${range} ${units}`;
-    }
-
-    if (reach !== undefined) {
-      return `${reach} ${units}`;
-    }
-
-    return undefined;
-  }
-
-  function getArmorClassLabel(
-    item: FoundryActorItem
-  ): string | undefined {
-    const armorValue = asNumber(
-      getNestedValue(
-        item.system,
-        "armor",
-        "value"
-      )
-    );
-
-    if (armorValue === undefined) {
-      return undefined;
-    }
-
-    const dexterityCap = asNumber(
-      getNestedValue(
-        item.system,
-        "armor",
-        "dex"
-      )
-    );
-
-    if (dexterityCap === undefined) {
-      return `AC ${armorValue}`;
-    }
-
-    return `AC ${armorValue} + Dex (max ${dexterityCap})`;
-  }
-
-  function getMasteryLabel(
-    item: FoundryActorItem
-  ): string | undefined {
-    const mastery = asString(item.system?.mastery);
-
-    if (!mastery) {
-      return undefined;
-    }
-
-    return masteryLabels[mastery] ?? formatType(mastery);
-  }
-
-  function getProperties(
-    item: FoundryActorItem
-  ): string[] {
-    const properties = item.system?.properties;
-
-    if (!Array.isArray(properties)) {
-      return [];
-    }
-
-    return properties
-      .filter(
-        (value): value is string =>
-          typeof value === "string"
-      )
-      .map(
-        (property) =>
-          propertyLabels[property] ??
-          formatType(property)
+    const abilityModifier =
+      Math.floor(
+        (
+          getAbilityScore(ability) -
+          10
+        ) / 2
       );
+
+    const magicalBonus =
+      asNumber(
+        item.system?.magicalBonus
+      ) ?? 0;
+
+    const totalBonus =
+      abilityModifier +
+      magicalBonus;
+
+    const modifier =
+      totalBonus === 0
+        ? ""
+        : formatSignedNumber(
+            totalBonus
+          );
+
+    return (
+      `${number}d${denomination}` +
+      `${bonus}${modifier}`
+    );
   }
 
-  function getItemDetails(
+  function getContainerCount(
     item: FoundryActorItem
-  ): string[] {
-    const details: string[] = [];
-
-    const damage = getDamageLabel(item);
-    const armorClass = getArmorClassLabel(item);
-    const range = getRangeLabel(item);
-    const mastery = getMasteryLabel(item);
-    const container = getContainerName(item);
-    const properties = getProperties(item);
-
-    if (damage) {
-      details.push(damage);
+  ): string {
+    if (
+      item.type !== "container" ||
+      !item._id
+    ) {
+      return "—";
     }
 
-    if (armorClass) {
-      details.push(armorClass);
-    }
+    const count =
+      actor.items.filter(
+        (entry) =>
+          entry.system?.container ===
+          item._id
+      ).length;
 
-    if (range) {
-      details.push(`Range ${range}`);
-    }
-
-    if (mastery) {
-      details.push(`Mastery: ${mastery}`);
-    }
-
-    if (properties.length > 0) {
-      details.push(properties.join(", "));
-    }
-
-    if (container) {
-      details.push(`In ${container}`);
-    }
-
-    return details;
+    return `${count} ${
+      count === 1
+        ? "item"
+        : "items"
+    }`;
   }
 
-  function getStatusLabels(
-    item: FoundryActorItem
-  ): string[] {
-    const labels: string[] = [];
+  function getCurrency():
+    Record<string, number> {
+    const result:
+      Record<string, number> = {
+        pp: 0,
+        gp: 0,
+        ep: 0,
+        sp: 0,
+        cp: 0
+      };
 
-    if (item.system?.equipped === true) {
-      labels.push("Equipped");
+    const source =
+      actor.system.currency;
+
+    if (!isRecord(source)) {
+      return result;
     }
 
-    if (item.system?.attuned === true) {
-      labels.push("Attuned");
+    for (
+      const key of Object.keys(
+        result
+      )
+    ) {
+      result[key] =
+        asNumber(source[key]) ?? 0;
     }
 
-    if (item.system?.identified === false) {
-      labels.push("Unidentified");
-    }
-
-    const rarity = asString(item.system?.rarity);
-
-    if (rarity) {
-      labels.push(formatType(rarity));
-    }
-
-    return labels;
+    return result;
   }
 
-  function formatType(value: string): string {
-    return value
-      .replace(/([a-z])([A-Z])/g, "$1 $2")
-      .replace(/[_-]+/g, " ")
-      .replace(/\b\w/g, (character) =>
-        character.toUpperCase()
-      );
+
+  function formatSignedNumber(
+    value: number
+  ): string {
+    return value >= 0
+      ? `+${value}`
+      : `${value}`;
   }
 
-  function formatNumber(value: number): string {
+  function formatNumber(
+    value: number
+  ): string {
     return Number.isInteger(value)
       ? `${value}`
-      : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+      : value
+          .toFixed(2)
+          .replace(/0+$/, "")
+          .replace(/\.$/, "");
   }
 
-  function getInitial(name: string): string {
-    return name.charAt(0).toUpperCase();
+  function formatLabel(
+    value: string
+  ): string {
+    return value
+      .replace(
+        /([a-z])([A-Z])/g,
+        "$1 $2"
+      )
+      .replace(/[_-]+/g, " ")
+      .replace(
+        /\b\w/g,
+        (character) =>
+          character.toUpperCase()
+      );
   }
 </script>
 
-<section class="tab-panel">
-  <div class="panel-heading">
-    <div>
-      <h3>Inventory</h3>
+<section class="inventory-tab">
+  <div class="toolbar">
+    <button
+      type="button"
+      class="toolbar-icon"
+      disabled
+      title="Collapse sections"
+    >
+      <TidyIcon icon={expandIcon} />
+    </button>
 
-      <p>
-        Weapons, equipment, consumables, tools,
-        containers, and loot.
-      </p>
-    </div>
+    <label class="search-field">
+      <TidyIcon icon={searchIcon} />
 
-    <div class="inventory-summary">
-      <span>{inventory.length} items</span>
-      <span>{formatNumber(totalWeight)} lb</span>
+      <input
+        type="search"
+        value={searchText}
+        placeholder="Search"
+        on:input={handleSearch}
+      />
+    </label>
+
+    <div class="toolbar-filters">
+      <button
+        type="button"
+        disabled
+      >
+        Action
+      </button>
+
+      <button
+        type="button"
+        disabled
+      >
+        Bonus Action
+      </button>
+
+      <button
+        type="button"
+        disabled
+      >
+        Reaction
+      </button>
+
+      <button
+        type="button"
+        class:active={equippedOnly}
+        on:click={toggleEquipped}
+      >
+        Equipped
+      </button>
+
+      <button
+        type="button"
+        class="toolbar-icon"
+        disabled
+      >
+        <TidyIcon icon={filterIcon} />
+      </button>
+
+      <button
+        type="button"
+        class="toolbar-icon"
+        disabled
+      >
+        <TidyIcon icon={sortIcon} />
+      </button>
+
+      <button
+        type="button"
+        class="toolbar-icon"
+        disabled
+      >
+        <TidyIcon icon={settingsIcon} />
+      </button>
     </div>
   </div>
 
-  {#if inventory.length === 0}
+  <div class="encumbrance-summary">
+    <span class="summary-badge">
+      <span class="badge-label">
+        Strength
+      </span>
+
+      <strong class="badge-value">
+        {strengthScore}
+      </strong>
+    </span>
+
+    <span class="summary-badge">
+      <span class="badge-label">
+        Size
+      </span>
+
+      <strong class="badge-value">
+        {sizeLabel}
+      </strong>
+    </span>
+
+    <span class="summary-badge">
+      <span class="badge-label">
+        Multiplier
+      </span>
+
+      <strong class="badge-value">
+        ×1
+      </strong>
+    </span>
+
+    <div class="encumbrance-bar">
+      <div
+        class="encumbrance-fill"
+        style={`width: ${encumbrancePercent}%`}
+      ></div>
+
+      <strong>
+        <TidyIcon icon={carryingCapacityIcon} />
+        {formatNumber(totalWeight)}
+        /
+        {carryingCapacity}
+      </strong>
+    </div>
+  </div>
+
+  {#if groups.length === 0}
     <div class="empty-state">
-      No inventory items were found.
+      No matching items were found.
     </div>
   {:else}
-    <div class="inventory-groups">
+    <div class="group-list">
       {#each groups as group}
-        <section class="inventory-group">
-          <header class="group-heading">
-            <h4>{group.label}</h4>
-            <span>{group.items.length}</span>
+        <section
+          class:weapon-group={
+            group.id === "weapon"
+          }
+          class:container-group={
+            group.id === "container"
+          }
+          class="inventory-group"
+        >
+          <header class="group-header">
+            <div class="group-title">
+              <span class="group-toggle">
+                <TidyIcon icon={expandIcon} />
+              </span>
+
+              <h3>
+                <span class="group-name">
+                  {group.label}
+                </span>
+
+                <span class="group-count">
+                  {group.items.length}
+                </span>
+              </h3>
+            </div>
+
+            <div class="group-columns">
+              {#if group.id === "weapon"}
+                <span>Uses</span>
+                <span>Time</span>
+                <span>Roll</span>
+                <span>Formula</span>
+                <span>Price</span>
+                <span>Quantity</span>
+                <span>Weight</span>
+                <span><TidyIcon icon={searchIcon} /></span>
+                <span><TidyIcon icon={addIcon} /></span>
+              {:else if group.id === "container"}
+                <span></span>
+                <span></span>
+                <span><TidyIcon icon={searchIcon} /></span>
+                <span><TidyIcon icon={addIcon} /></span>
+              {:else}
+                <span>Price</span>
+                <span>Quantity</span>
+                <span>Weight</span>
+                <span><TidyIcon icon={searchIcon} /></span>
+                <span><TidyIcon icon={addIcon} /></span>
+              {/if}
+            </div>
           </header>
 
           <div class="item-list">
-            <div class="item-row item-header">
-              <span>Item</span>
-              <span>Quantity</span>
-              <span>Weight</span>
-              <span>Value</span>
-            </div>
-
             {#each group.items as item}
-              {@const details = getItemDetails(item)}
-              {@const statuses = getStatusLabels(item)}
+              {@const price =
+                getPriceParts(item)}
 
-              <article class="item-row">
-                <div class="item-main">
-                  <div class="item-icon">
-                    {getInitial(item.name)}
-                  </div>
+              {@const weight =
+                getWeightParts(item)}
 
-                  <div class="item-information">
-                    <div class="item-title-row">
-                      <strong>{item.name}</strong>
-
-                      {#if statuses.length > 0}
-                        <div class="status-list">
-                          {#each statuses as status}
-                            <span>{status}</span>
-                          {/each}
-                        </div>
-                      {/if}
-                    </div>
-
-                    <small class="item-type">
-                      {formatType(getItemSubtype(item))}
-                    </small>
-
-                    {#if details.length > 0}
-                      <div class="item-details">
-                        {#each details as detail}
-                          <span>{detail}</span>
-                        {/each}
-                      </div>
+              <article class="item-row item-row-clickable">
+                <button
+                  type="button"
+                  class="item-identity item-details-button"
+                  aria-label={`View details for ${item.name}`}
+                  on:click={() => openItemDetails(item)}
+                >
+                  <div class="item-image">
+                    {#if getItemImageSrc(character, item)}
+                      <img
+                        src={getItemImageSrc(character, item) ?? ""}
+                        alt=""
+                      />
                     {/if}
                   </div>
-                </div>
 
-                <span class="quantity">
-                  {getQuantity(item)}
+                  <strong>
+                    {item.name}
+                  </strong>
+                </button>
+
+                {#if group.id === "weapon"}
+                  <span>
+                    {getUsesLabel(item)}
+                  </span>
+
+                  <span class="activation-value">
+                    {getActivationLabel(item)}
+                  </span>
+
+                  <span class="roll-value">
+                    {getRollModifier(item)}
+                  </span>
+
+                  <span class="formula-value">
+                    {getDamageLabel(item)}
+                  </span>
+                {/if}
+
+                {#if group.id === "container"}
+                  <span class="container-contents">
+                    {getContainerCount(item)}
+                  </span>
+
+                  <span class="container-meter"></span>
+                {:else}
+                  <span class="price-value">
+                    <strong>
+                      {price.value}
+                    </strong>
+
+                    {#if price.unit}
+                      <small>
+                        {price.unit}
+                      </small>
+                    {/if}
+                  </span>
+
+                  <span>
+                    <span class="quantity-field">
+                      {getQuantity(item)}
+                    </span>
+                  </span>
+
+                  <span class="weight-value">
+                    <strong>
+                      {weight.value}
+                    </strong>
+
+                    <small>
+                      {weight.unit}
+                    </small>
+                  </span>
+                {/if}
+
+                <span class="item-action">
+                  <TidyIcon icon={favoriteIcon} />
                 </span>
 
-                <span class="weight">
-                  {getWeightLabel(item)}
-                </span>
-
-                <span class="price">
-                  {getPriceLabel(item)}
+                <span class="item-action">
+                  <TidyIcon icon={moreOptionsIcon} />
                 </span>
               </article>
             {/each}
@@ -660,255 +1073,32 @@
       {/each}
     </div>
   {/if}
+
+  <footer class="inventory-footer">
+    <div class="attunement-box">
+      <TidyIcon icon={attunementIcon} /> 0 / 3 Attuned
+    </div>
+
+    <div class="currency-grid">
+      {#each [
+        ["pp", "PP"],
+        ["gp", "GP"],
+        ["ep", "EP"],
+        ["sp", "SP"],
+        ["cp", "CP"]
+      ] as denomination}
+        <div class="currency-box">
+          <span>
+            {currency[denomination[0]]}
+          </span>
+
+          <strong>
+            {denomination[1]}
+          </strong>
+        </div>
+      {/each}
+    </div>
+  </footer>
 </section>
 
-<style>
-  h3,
-  h4,
-  p {
-    margin-top: 0;
-  }
-
-  .tab-panel {
-    padding: 1.25rem;
-    border: 1px solid #454038;
-    border-radius: 0.5rem;
-    background: #24211d;
-  }
-
-  .panel-heading {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .panel-heading h3 {
-    margin-bottom: 0.25rem;
-  }
-
-  .panel-heading p {
-    margin-bottom: 0;
-    color: #aaa398;
-  }
-
-  .inventory-summary {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 0.5rem;
-  }
-
-  .inventory-summary span {
-    padding: 0.35rem 0.65rem;
-    border: 1px solid #514c43;
-    border-radius: 999px;
-    background: #1d1b18;
-    color: #c4bdae;
-    font-size: 0.8rem;
-  }
-
-  .inventory-groups {
-    display: grid;
-    gap: 1rem;
-  }
-
-  .inventory-group {
-    overflow: hidden;
-    border: 1px solid #454038;
-    border-radius: 0.4rem;
-  }
-
-  .group-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.7rem 0.85rem;
-    background: #302c26;
-  }
-
-  .group-heading h4 {
-    margin-bottom: 0;
-  }
-
-  .group-heading > span {
-    display: grid;
-    min-width: 1.8rem;
-    height: 1.8rem;
-    place-items: center;
-    border-radius: 999px;
-    background: #1d1b18;
-    color: #aaa398;
-    font-size: 0.8rem;
-  }
-
-  .item-list {
-    background: #1d1b18;
-  }
-
-  .item-row {
-    display: grid;
-    grid-template-columns:
-      minmax(300px, 1fr)
-      80px
-      100px
-      100px;
-    align-items: center;
-    gap: 1rem;
-    min-height: 64px;
-    padding: 0.75rem 0.85rem;
-    border-bottom: 1px solid #454038;
-  }
-
-  .item-row:last-child {
-    border-bottom: 0;
-  }
-
-  .item-row:nth-child(odd):not(.item-header) {
-    background: #211f1b;
-  }
-
-  .item-header {
-    min-height: auto;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    background: #28241f;
-    color: #8f887d;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .item-main {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    min-width: 0;
-  }
-
-  .item-icon {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    place-items: center;
-    border: 1px solid #514c43;
-    border-radius: 0.3rem;
-    background: #181714;
-    font-weight: 700;
-  }
-
-  .item-information {
-    min-width: 0;
-  }
-
-  .item-title-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .item-title-row strong {
-    overflow-wrap: anywhere;
-  }
-
-  .item-type {
-    display: block;
-    margin-top: 0.15rem;
-    color: #8f887d;
-  }
-
-  .status-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-
-  .status-list span {
-    padding: 0.15rem 0.4rem;
-    border: 1px solid #806c48;
-    border-radius: 999px;
-    background: #3d3020;
-    color: #e2c289;
-    font-size: 0.68rem;
-  }
-
-  .item-details {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem 0.65rem;
-    margin-top: 0.35rem;
-    color: #aaa398;
-    font-size: 0.75rem;
-  }
-
-  .item-details span {
-    position: relative;
-  }
-
-  .item-details span:not(:last-child)::after {
-    position: absolute;
-    right: -0.42rem;
-    content: "•";
-    color: #5f594f;
-  }
-
-  .quantity,
-  .weight,
-  .price {
-    color: #c4bdae;
-  }
-
-  .empty-state {
-    padding: 2rem;
-    border: 1px dashed #514c43;
-    border-radius: 0.4rem;
-    color: #aaa398;
-    text-align: center;
-  }
-
-  @media (max-width: 800px) {
-    .item-row {
-      grid-template-columns:
-        minmax(240px, 1fr)
-        70px
-        90px;
-    }
-
-    .item-header span:last-child,
-    .price {
-      display: none;
-    }
-  }
-
-  @media (max-width: 600px) {
-    .panel-heading {
-      flex-direction: column;
-    }
-
-    .inventory-summary {
-      flex-wrap: wrap;
-    }
-
-    .item-header {
-      display: none;
-    }
-
-    .item-row {
-      grid-template-columns: 1fr auto;
-      gap: 0.75rem;
-    }
-
-    .quantity::before {
-      content: "Qty ";
-      color: #8f887d;
-    }
-
-    .weight,
-    .price {
-      display: none;
-    }
-  }
-</style>
+<ItemDetailsDialog {character} item={selectedItem} onClose={() => selectedItem = null} />

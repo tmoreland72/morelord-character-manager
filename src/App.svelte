@@ -9,7 +9,8 @@
   import {
     deleteCharacter,
     getAllCharacters,
-    saveImportedCharacter
+    saveImportedCharacter,
+    saveCharacterPortrait,
   } from "./lib/database/character-repository";
 
   import type { StoredCharacter } from "./lib/models/stored-character";
@@ -47,10 +48,9 @@
     fileInput.click();
   }
 
-  async function handleFileSelection(
-    event: Event
-  ): Promise<void> {
+  async function handleFileSelection(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
+
     const file = input.files?.[0];
 
     if (!file) {
@@ -64,10 +64,7 @@
     try {
       const imported = await readActorFile(file);
 
-      const saved = await saveImportedCharacter(
-        imported.actor,
-        imported.fileName
-      );
+      const saved = await saveImportedCharacter(imported);
 
       await refreshCharacters();
 
@@ -81,15 +78,11 @@
           : "The character could not be imported.";
     } finally {
       importing = false;
-
-      // Reset the input so the same file can be selected again.
       input.value = "";
     }
   }
 
-  function openCharacter(
-    character: StoredCharacter
-  ): void {
+  function openCharacter(character: StoredCharacter): void {
     selectedCharacter = character;
     errorMessage = "";
     statusMessage = "";
@@ -101,11 +94,80 @@
     statusMessage = "";
   }
 
-  async function removeCharacter(
-    character: StoredCharacter
-  ): Promise<void> {
+  async function changePortrait(file: File): Promise<void> {
+    if (!selectedCharacter) {
+      return;
+    }
+
+    errorMessage = "";
+    statusMessage = "";
+
+    try {
+      const portraitDataUrl = await readImageAsDataUrl(file);
+
+      const updated = await saveCharacterPortrait(
+        selectedCharacter.localId,
+        portraitDataUrl,
+      );
+
+      selectedCharacter = updated;
+      await refreshCharacters();
+
+      statusMessage = `${updated.name}'s portrait was updated.`;
+    } catch (error) {
+      console.error(error);
+
+      errorMessage =
+        error instanceof Error
+          ? error.message
+          : "The portrait could not be updated.";
+    }
+  }
+
+  function readImageAsDataUrl(file: File): Promise<string> {
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      return Promise.reject(
+        new Error("Choose a PNG, JPG, or WebP image."),
+      );
+    }
+
+    const maximumFileSize = 8 * 1024 * 1024;
+
+    if (file.size > maximumFileSize) {
+      return Promise.reject(
+        new Error("The portrait image must be 8 MB or smaller."),
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error("The portrait image could not be read."));
+          return;
+        }
+
+        resolve(reader.result);
+      };
+
+      reader.onerror = () => {
+        reject(new Error("The portrait image could not be read."));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function removeCharacter(character: StoredCharacter): Promise<void> {
     const confirmed = window.confirm(
-      `Remove ${character.name} from the character manager?`
+      `Remove ${character.name} from the character manager?`,
     );
 
     if (!confirmed) {
@@ -118,9 +180,7 @@
     try {
       await deleteCharacter(character.localId);
 
-      if (
-        selectedCharacter?.localId === character.localId
-      ) {
+      if (selectedCharacter?.localId === character.localId) {
         selectedCharacter = null;
       }
 
@@ -129,6 +189,7 @@
       statusMessage = `${character.name} was removed.`;
     } catch (error) {
       console.error(error);
+
       errorMessage = `${character.name} could not be removed.`;
     }
   }
@@ -139,21 +200,13 @@
 </svelte:head>
 
 <div class="app-shell">
-  <header class="app-header">
-    <div class="app-title">
-      <h1>Character Manager</h1>
-      <p>Offline Foundry D&D character viewer</p>
-    </div>
+  {#if !selectedCharacter}
+    <header class="app-header">
+      <div class="app-title">
+        <h1>Character Manager</h1>
+        <p>Offline Foundry D&D character viewer</p>
+      </div>
 
-    {#if selectedCharacter}
-      <button
-        type="button"
-        class="header-button secondary-button"
-        on:click={closeCharacter}
-      >
-        Back to Characters
-      </button>
-    {:else}
       <button
         type="button"
         class="header-button"
@@ -162,33 +215,28 @@
       >
         {importing ? "Importing…" : "Import Character"}
       </button>
-    {/if}
 
-    <input
-      bind:this={fileInput}
-      class="file-input"
-      type="file"
-      accept=".json,application/json"
-      on:change={handleFileSelection}
-    />
-  </header>
+      <input
+        bind:this={fileInput}
+        class="file-input"
+        type="file"
+        accept=".json,application/json"
+        on:change={handleFileSelection}
+      />
+    </header>
+  {/if}
 
-  <main>
+  <main class:sheet-mode={selectedCharacter !== null}>
     {#if errorMessage}
-      <section
-        class="message error-message"
-        role="alert"
-      >
-        <strong>Something went wrong</strong>
+      <section class="message error-message" role="alert">
+        <strong> Something went wrong </strong>
+
         <p>{errorMessage}</p>
       </section>
     {/if}
 
     {#if statusMessage}
-      <section
-        class="message success-message"
-        role="status"
-      >
+      <section class="message success-message" role="status">
         <p>{statusMessage}</p>
       </section>
     {/if}
@@ -196,11 +244,13 @@
     {#if selectedCharacter}
       <CharacterSheet
         character={selectedCharacter}
+        onClose={closeCharacter}
+        onPortraitChange={changePortrait}
       />
     {:else}
       <CharacterList
-        characters={characters}
-        loading={loading}
+        {characters}
+        {loading}
         onOpen={openCharacter}
         onRemove={removeCharacter}
         onImport={openFilePicker}
@@ -264,10 +314,6 @@
     opacity: 0.65;
   }
 
-  .secondary-button {
-    background: #33302b;
-  }
-
   .file-input {
     display: none;
   }
@@ -276,6 +322,11 @@
     width: min(1200px, 100%);
     margin: 0 auto;
     padding: 2rem;
+  }
+
+  main.sheet-mode {
+    width: min(1080px, 100%);
+    padding: 0.75rem;
   }
 
   .message {
@@ -320,8 +371,9 @@
       padding: 0.65rem 0.8rem;
     }
 
-    main {
-      padding: 1rem;
+    main,
+    main.sheet-mode {
+      padding: 0.5rem;
     }
   }
 </style>

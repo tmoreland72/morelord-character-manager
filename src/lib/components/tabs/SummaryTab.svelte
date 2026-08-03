@@ -1,437 +1,724 @@
 <script lang="ts">
-  import type { FoundryActor } from "../../models/foundry-actor";
+  import TidyIcon from "../TidyIcon.svelte";
+  import type { TidyIcon as TidyIconDefinition } from "../../icons/tidy-icons";
+  import { armorIcon, arrowRightIcon, languagesIcon, proficiencyFullIcon, proficiencyHalfIcon, proficiencyNoneIcon, savingThrowsIcon, sizeIcon, skillsIcon, specialTraitsIcon, toolsIcon, weaponsIcon } from "../../icons/tidy-icons";
+  import type {
+    FoundryActorItem
+  } from "../../models/foundry-actor";
+
+  import type {
+    StoredCharacter
+  } from "../../models/stored-character";
+
+  import {
+    getItemImageSrc
+  } from "../../assets/image-resolver";
+
+  import ItemDetailsDialog from "../ItemDetailsDialog.svelte";
 
   import {
     deriveCharacterValues,
-    formatSignedNumber,
-    getAbilityModifier,
-    getAbilityScore
+    formatSignedNumber
   } from "../../characters/derived-character";
 
-  export let actor: FoundryActor;
+  export let character: StoredCharacter;
 
-  const abilities = [
-    { key: "str", label: "Strength" },
-    { key: "dex", label: "Dexterity" },
-    { key: "con", label: "Constitution" },
-    { key: "int", label: "Intelligence" },
-    { key: "wis", label: "Wisdom" },
-    { key: "cha", label: "Charisma" }
-  ];
+  let selectedItem: FoundryActorItem | null = null;
+
+  $: actor = character.actor;
+
+  type UnknownRecord = Record<string, unknown>;
+
+  interface TraitRow {
+    label: string;
+    icon: TidyIconDefinition;
+    values: string[];
+  }
+
+  const abilityLabels: Record<string, string> = {
+    str: "STR",
+    dex: "DEX",
+    con: "CON",
+    int: "INT",
+    wis: "WIS",
+    cha: "CHA"
+  };
 
   $: derived = deriveCharacterValues(actor);
 
-  function getProficiencySymbol(
-    value: number
-  ): string {
-    if (value >= 2) {
-      return "◆";
-    }
+  $: classes = actor.items
+    .filter((item) => item.type === "class")
+    .sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
 
-    if (value >= 1) {
-      return "●";
-    }
+  $: species = actor.items.find(
+    (item) =>
+      item.type === "race" ||
+      item.type === "species"
+  );
 
-    if (value > 0) {
-      return "◐";
-    }
+  $: background = actor.items.find(
+    (item) => item.type === "background"
+  );
 
-    return "○";
+  $: tools = actor.items
+    .filter((item) => item.type === "tool")
+    .sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
+
+  $: traitRows = createTraitRows();
+
+  function isRecord(
+    value: unknown
+  ): value is UnknownRecord {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    );
   }
 
-  function getAbilityAbbreviation(
-    ability: string
+  function asString(
+    value: unknown
+  ): string | undefined {
+    return typeof value === "string"
+      ? value
+      : undefined;
+  }
+
+  function asNumber(
+    value: unknown
+  ): number | undefined {
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value)
+    ) {
+      return value;
+    }
+
+    if (
+      typeof value === "string" &&
+      value.trim() !== ""
+    ) {
+      const parsed = Number(value);
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    return undefined;
+  }
+
+  function getNestedValue(
+    source: unknown,
+    ...keys: string[]
+  ): unknown {
+    let current = source;
+
+    for (const key of keys) {
+      if (!isRecord(current)) {
+        return undefined;
+      }
+
+      current = current[key];
+    }
+
+    return current;
+  }
+
+  function getArrayOfStrings(
+    value: unknown
+  ): string[] {
+    if (Array.isArray(value)) {
+      return value.filter(
+        (entry): entry is string =>
+          typeof entry === "string" &&
+          entry.trim().length > 0
+      );
+    }
+
+    if (isRecord(value)) {
+      return Object.entries(value)
+        .filter(([, enabled]) =>
+          enabled === true ||
+          enabled === 1
+        )
+        .map(([key]) => key);
+    }
+
+    return [];
+  }
+
+  function getTraitValues(
+    traitName: string
+  ): string[] {
+    const trait = getNestedValue(
+      actor.system,
+      "traits",
+      traitName
+    );
+
+    if (!isRecord(trait)) {
+      return getArrayOfStrings(trait)
+        .map(formatLabel);
+    }
+
+    const values = getArrayOfStrings(
+      trait.value
+    );
+
+    const custom = asString(
+      trait.custom
+    )
+      ?.split(/[;,]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean) ?? [];
+
+    return [...values, ...custom]
+      .map(formatLabel)
+      .filter(
+        (value, index, collection) =>
+          collection.indexOf(value) === index
+      );
+  }
+
+  function getSizeLabel(): string {
+    const value = asString(
+      getNestedValue(
+        actor.system,
+        "traits",
+        "size"
+      )
+    );
+
+    const labels: Record<string, string> = {
+      tiny: "Tiny",
+      sm: "Small",
+      med: "Medium",
+      lg: "Large",
+      huge: "Huge",
+      grg: "Gargantuan"
+    };
+
+    return value
+      ? labels[value] ?? formatLabel(value)
+      : "—";
+  }
+
+  function getCreatureType(): string {
+    const value = asString(
+      getNestedValue(
+        species?.system,
+        "type",
+        "value"
+      )
+    );
+
+    const subtype = asString(
+      getNestedValue(
+        species?.system,
+        "type",
+        "subtype"
+      )
+    );
+
+    if (value && subtype) {
+      return `${formatLabel(value)} ${formatLabel(subtype)}`;
+    }
+
+    return formatLabel(
+      value || subtype || "Humanoid"
+    );
+  }
+
+  function getClassLevel(
+    item: FoundryActorItem
+  ): number {
+    return asNumber(
+      item.system?.levels
+    ) ?? 0;
+  }
+
+  function getSpeedLabel(): string {
+    if (derived.speed === null) {
+      return "—";
+    }
+
+    return `Speed ${derived.speed} ${derived.speedUnits}`;
+  }
+
+  function createTraitRows():
+    TraitRow[] {
+    return [
+      {
+        label: "Size",
+        icon: sizeIcon,
+        values: [getSizeLabel()]
+      },
+      {
+        label: "Speed",
+        icon: arrowRightIcon,
+        values: [getSpeedLabel()]
+      },
+      {
+        label: "Armor",
+        icon: armorIcon,
+        values: getTraitValues(
+          "armorProf"
+        )
+      },
+      {
+        label: "Weapons",
+        icon: weaponsIcon,
+        values: getTraitValues(
+          "weaponProf"
+        )
+      },
+      {
+        label: "Languages",
+        icon: languagesIcon,
+        values: getTraitValues(
+          "languages"
+        )
+      }
+    ];
+  }
+
+  function getToolAbility(
+    item: FoundryActorItem
   ): string {
-    return ability.toUpperCase();
+    const ability = asString(
+      item.system?.ability
+    );
+
+    if (ability) {
+      return ability.toUpperCase();
+    }
+
+    const activity = getFirstActivity(
+      item
+    );
+
+    const activityAbility = asString(
+      getNestedValue(
+        activity,
+        "check",
+        "ability"
+      )
+    );
+
+    return activityAbility
+      ? activityAbility.toUpperCase()
+      : "—";
+  }
+
+  function getToolModifier(
+    item: FoundryActorItem
+  ): number {
+    const ability =
+      getToolAbility(item).toLowerCase();
+
+    const skill = derived.skills.find(
+      (entry) =>
+        entry.ability === ability
+    );
+
+    const proficiency =
+      asNumber(
+        item.system?.proficient
+      ) ?? 1;
+
+    const baseModifier =
+      getAbilityModifierFromDerived(
+        ability
+      );
+
+    return (
+      baseModifier +
+      derived.proficiencyBonus *
+        proficiency
+    );
+  }
+
+  function getAbilityModifierFromDerived(
+    ability: string
+  ): number {
+    const save =
+      derived.savingThrows.find(
+        (entry) =>
+          entry.ability === ability
+      );
+
+    if (!save) {
+      return 0;
+    }
+
+    const proficientBonus =
+      save.proficient
+        ? derived.proficiencyBonus
+        : 0;
+
+    return (
+      save.modifier -
+      proficientBonus
+    );
+  }
+
+  function getFirstActivity(
+    item: FoundryActorItem
+  ): unknown {
+    const activities =
+      item.system?.activities;
+
+    if (!isRecord(activities)) {
+      return undefined;
+    }
+
+    return Object.values(
+      activities
+    )[0];
+  }
+
+  function getProficiencyIcon(
+    proficiency: number
+  ): TidyIconDefinition {
+    if (proficiency >= 2) {
+      return specialTraitsIcon;
+    }
+
+    if (proficiency >= 1) {
+      return proficiencyFullIcon;
+    }
+
+    if (proficiency > 0) {
+      return proficiencyHalfIcon;
+    }
+
+    return proficiencyNoneIcon;
+  }
+
+  function formatLabel(
+    value: string
+  ): string {
+    return value
+      .replace(
+        /([a-z])([A-Z])/g,
+        "$1 $2"
+      )
+      .replace(/[_-]+/g, " ")
+      .replace(
+        /\b\w/g,
+        (character) =>
+          character.toUpperCase()
+      );
   }
 </script>
 
-<div class="summary-layout">
-  <section class="sheet-section">
-    <h3>Ability Scores</h3>
+<div class="character-tab">
+  <aside class="left-column">
+    <section class="tidy-panel skills-panel">
+      <header class="panel-header">
+        <div>
+          <span class="header-icon">
+            <TidyIcon icon={skillsIcon} />
+          </span>
 
-    <div class="ability-grid">
-      {#each abilities as ability}
-        {@const score = getAbilityScore(
-          actor,
-          ability.key
-        )}
+          <h3>Skills</h3>
+        </div>
 
-        <article class="ability-card">
-          <span>{ability.label}</span>
-          <strong>{score}</strong>
+        <span>
+          Modifier / Passive
+        </span>
+      </header>
 
-          <small>
-            {formatSignedNumber(
-              getAbilityModifier(
-                actor,
-                ability.key
-              )
-            )}
-          </small>
-        </article>
-      {/each}
-    </div>
-  </section>
-
-  <div class="summary-columns">
-    <section class="sheet-section">
-      <h3>Saving Throws</h3>
-
-      <div class="save-list">
-        {#each derived.savingThrows as save}
-          <div class="save-row">
+      <div class="skill-list">
+        {#each derived.skills as skill}
+          <div class="skill-row">
             <span
-              class:proficient={save.proficient}
-              class="proficiency-symbol"
-              title={
-                save.proficient
-                  ? "Proficient"
-                  : "Not proficient"
+              class:trained={
+                skill.proficiency > 0
               }
+              class:expert={
+                skill.proficiency >= 2
+              }
+              class="proficiency-marker"
             >
-              {save.proficient ? "●" : "○"}
+              <TidyIcon icon={getProficiencyIcon(skill.proficiency)} />
             </span>
 
-            <span>{save.name}</span>
+            <span class="skill-ability">
+              {abilityLabels[
+                skill.ability
+              ] ??
+                skill.ability.toUpperCase()}
+            </span>
 
-            <strong>
-              {formatSignedNumber(
-                save.modifier
-              )}
+            <strong class="skill-name">
+              {skill.name}
             </strong>
+
+            <span class="skill-modifier">
+              {formatSignedNumber(
+                skill.modifier
+              )}
+            </span>
+
+            <span class="skill-passive">
+              {skill.passive}
+            </span>
           </div>
         {/each}
       </div>
     </section>
 
-    <section class="sheet-section">
-      <h3>Combat</h3>
-
-      <div class="combat-grid">
+    <section class="tidy-panel tools-panel">
+      <header class="panel-header">
         <div>
-          <span>Armor Class</span>
-          <strong>{derived.armorClass}</strong>
+          <span class="header-icon">
+            <TidyIcon icon={toolsIcon} />
+          </span>
+
+          <h3>Tools</h3>
         </div>
 
+        <span>Modifier</span>
+      </header>
+
+      {#if tools.length === 0}
+        <div class="empty-row">
+          No tool proficiencies
+        </div>
+      {:else}
+        <div class="tool-list">
+          {#each tools as tool}
+            <div class="tool-row detail-trigger" role="button" tabindex="0" on:click={() => selectedItem = tool} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") selectedItem = tool; }}>
+              <span class="proficiency-marker trained">
+                <TidyIcon icon={proficiencyFullIcon} />
+              </span>
+
+              <span class="tool-item-image">
+                {#if getItemImageSrc(character, tool)}
+                  <img
+                    src={getItemImageSrc(character, tool)}
+                    alt=""
+                  />
+                {:else}
+                  {tool.name.charAt(0).toUpperCase()}
+                {/if}
+              </span>
+
+              <span class="tool-ability">
+                {getToolAbility(tool)}
+              </span>
+
+              <strong>
+                {tool.name}
+              </strong>
+
+              <span class="tool-modifier">
+                {formatSignedNumber(
+                  getToolModifier(tool)
+                )}
+              </span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+  </aside>
+
+  <div class="right-column">
+    <section class="tidy-panel saves-panel">
+      <header class="panel-header">
         <div>
-          <span>Initiative</span>
-          <strong>
-            {formatSignedNumber(
-              derived.initiative
-            )}
-          </strong>
+          <span class="header-icon">
+            <TidyIcon icon={savingThrowsIcon} />
+          </span>
+
+          <h3>Saving Throws</h3>
         </div>
 
-        <div>
-          <span>Proficiency</span>
-          <strong>
-            {formatSignedNumber(
-              derived.proficiencyBonus
-            )}
-          </strong>
-        </div>
+        <span>Modifier</span>
+      </header>
 
-        <div>
-          <span>Speed</span>
-          <strong>
-            {derived.speed ?? "—"}
-            {#if derived.speed !== null}
-              <small>
-                {derived.speedUnits}
-              </small>
-            {/if}
-          </strong>
-        </div>
+      <div class="save-grid">
+        {#each derived.savingThrows as save}
+          <div class="save-row">
+            <span
+              class:trained={
+                save.proficient
+              }
+              class="proficiency-marker"
+            >
+              <TidyIcon icon={save.proficient ? proficiencyFullIcon : proficiencyNoneIcon} />
+            </span>
+
+            <strong>
+              {save.name}
+            </strong>
+
+            <span>
+              {formatSignedNumber(
+                save.modifier
+              )}
+            </span>
+          </div>
+        {/each}
       </div>
+    </section>
 
-      <div class="health-panel">
-        <div>
-          <span>Current HP</span>
-          <strong>{derived.currentHp}</strong>
+    <section class="traits-section">
+      <header class="traits-heading">
+        <h3>Character Traits</h3>
+
+        <button
+          type="button"
+          disabled
+        >
+          <TidyIcon icon={specialTraitsIcon} /> Special Traits
+        </button>
+      </header>
+
+      <div class="trait-list">
+        {#each classes as classItem}
+          <div class="trait-row">
+            <strong class="trait-label">
+              Class
+            </strong>
+
+            <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => selectedItem = classItem} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") selectedItem = classItem; }}>
+              <span class="item-icon">
+                {#if getItemImageSrc(character, classItem)}
+                  <img
+                    src={getItemImageSrc(character, classItem)}
+                    alt=""
+                  />
+                {:else}
+                  {classItem.name
+                    .charAt(0)
+                    .toUpperCase()}
+                {/if}
+              </span>
+
+              <span class="linked-value">
+                {classItem.name}
+              </span>
+
+              <span>
+                · Level
+                {getClassLevel(
+                  classItem
+                )}
+              </span>
+            </div>
+          </div>
+        {/each}
+
+        <div class="trait-row">
+          <strong class="trait-label">
+            Species
+          </strong>
+
+          <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => species && (selectedItem = species)} on:keydown={(event) => { if (species && (event.key === "Enter" || event.key === " ")) selectedItem = species; }}>
+            {#if species}
+              <span class="item-icon">
+                {#if getItemImageSrc(character, species)}
+                  <img
+                    src={getItemImageSrc(character, species)}
+                    alt=""
+                  />
+                {:else}
+                  {species.name
+                    .charAt(0)
+                    .toUpperCase()}
+                {/if}
+              </span>
+
+              <span class="linked-value">
+                {species.name}
+              </span>
+            {:else}
+              <span>—</span>
+            {/if}
+          </div>
         </div>
 
-        <div>
-          <span>Maximum HP</span>
-          <strong>{derived.maximumHp}</strong>
+        <div class="trait-row">
+          <strong class="trait-label">
+            Creature Type
+          </strong>
+
+          <div class="trait-value">
+            <span class="trait-arrow">
+              <TidyIcon icon={arrowRightIcon} />
+            </span>
+
+            <span>
+              {getCreatureType()}
+            </span>
+          </div>
         </div>
 
-        <div>
-          <span>Temporary HP</span>
-          <strong>{derived.temporaryHp}</strong>
+        <div class="trait-row">
+          <strong class="trait-label">
+            Background
+          </strong>
+
+          <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => background && (selectedItem = background)} on:keydown={(event) => { if (background && (event.key === "Enter" || event.key === " ")) selectedItem = background; }}>
+            {#if background}
+              <span class="item-icon">
+                {#if getItemImageSrc(character, background)}
+                  <img
+                    src={getItemImageSrc(character, background)}
+                    alt=""
+                  />
+                {:else}
+                  {background.name
+                    .charAt(0)
+                    .toUpperCase()}
+                {/if}
+              </span>
+
+              <span class="linked-value">
+                {background.name}
+              </span>
+            {:else}
+              <span>—</span>
+            {/if}
+          </div>
         </div>
+
+        {#each traitRows as row}
+          <div class="trait-row">
+            <strong class="trait-label">
+              <span class="trait-label-icon">
+                <TidyIcon icon={row.icon} />
+              </span>
+
+              {row.label}
+            </strong>
+
+            <div class="trait-value trait-tags">
+              {#if row.values.length === 0}
+                <span class="muted">
+                  None
+                </span>
+              {:else}
+                {#each row.values as value}
+                  <span class="trait-tag">
+                    {value}
+                  </span>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        {/each}
       </div>
     </section>
   </div>
-
-  <section class="sheet-section">
-    <div class="section-heading">
-      <h3>Skills</h3>
-
-      <div class="legend">
-        <span>○ None</span>
-        <span>● Proficient</span>
-        <span>◆ Expertise</span>
-      </div>
-    </div>
-
-    <div class="skill-grid">
-      {#each derived.skills as skill}
-        <div class="skill-row">
-          <span
-            class:trained={skill.proficiency > 0}
-            class:expert={skill.proficiency >= 2}
-            class="proficiency-symbol"
-          >
-            {getProficiencySymbol(
-              skill.proficiency
-            )}
-          </span>
-
-          <span class="skill-name">
-            {skill.name}
-
-            <small>
-              {getAbilityAbbreviation(
-                skill.ability
-              )}
-            </small>
-          </span>
-
-          <strong>
-            {formatSignedNumber(
-              skill.modifier
-            )}
-          </strong>
-
-          <span class="passive">
-            Passive {skill.passive}
-          </span>
-        </div>
-      {/each}
-    </div>
-  </section>
 </div>
 
-<style>
-  h3 {
-    margin-top: 0;
-  }
-
-  .summary-layout {
-    display: grid;
-    gap: 1rem;
-  }
-
-  .sheet-section {
-    padding: 1.25rem;
-    border: 1px solid #454038;
-    border-radius: 0.5rem;
-    background: #24211d;
-  }
-
-  .sheet-section h3 {
-    margin-bottom: 1rem;
-  }
-
-  .ability-grid {
-    display: grid;
-    grid-template-columns:
-      repeat(6, minmax(90px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .ability-card {
-    display: grid;
-    place-items: center;
-    padding: 0.85rem;
-    border: 1px solid #514c43;
-    border-radius: 0.4rem;
-    background: #1d1b18;
-  }
-
-  .ability-card span {
-    color: #aaa398;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .ability-card strong {
-    margin: 0.2rem 0;
-    font-size: 1.6rem;
-  }
-
-  .ability-card small {
-    color: #c4bdae;
-    font-size: 1rem;
-  }
-
-  .summary-columns {
-    display: grid;
-    grid-template-columns: 1fr 1.4fr;
-    gap: 1rem;
-  }
-
-  .save-list {
-    display: grid;
-  }
-
-  .save-row {
-    display: grid;
-    grid-template-columns: 24px 1fr auto;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #454038;
-  }
-
-  .save-row:last-child {
-    border-bottom: 0;
-  }
-
-  .proficiency-symbol {
-    color: #777168;
-    text-align: center;
-  }
-
-  .proficiency-symbol.proficient,
-  .proficiency-symbol.trained {
-    color: #d4ae6d;
-  }
-
-  .proficiency-symbol.expert {
-    color: #e2c289;
-  }
-
-  .combat-grid,
-  .health-panel {
-    display: grid;
-    grid-template-columns:
-      repeat(4, minmax(90px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .combat-grid > div,
-  .health-panel > div {
-    display: grid;
-    place-items: center;
-    min-height: 82px;
-    padding: 0.7rem;
-    border: 1px solid #514c43;
-    border-radius: 0.4rem;
-    background: #1d1b18;
-    text-align: center;
-  }
-
-  .combat-grid span,
-  .health-panel span {
-    color: #aaa398;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .combat-grid strong,
-  .health-panel strong {
-    font-size: 1.4rem;
-  }
-
-  .combat-grid small {
-    margin-left: 0.2rem;
-    color: #aaa398;
-    font-size: 0.75rem;
-  }
-
-  .health-panel {
-    grid-template-columns: repeat(3, 1fr);
-    margin-top: 0.75rem;
-  }
-
-  .section-heading {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    color: #8f887d;
-    font-size: 0.75rem;
-  }
-
-  .skill-grid {
-    display: grid;
-    grid-template-columns:
-      repeat(2, minmax(280px, 1fr));
-    gap: 0 1.25rem;
-  }
-
-  .skill-row {
-    display: grid;
-    grid-template-columns:
-      24px minmax(140px, 1fr) 40px 90px;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #454038;
-  }
-
-  .skill-name small {
-    margin-left: 0.35rem;
-    color: #777168;
-    font-size: 0.7rem;
-  }
-
-  .passive {
-    color: #8f887d;
-    font-size: 0.72rem;
-    text-align: right;
-  }
-
-  @media (max-width: 850px) {
-    .ability-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    .summary-columns {
-      grid-template-columns: 1fr;
-    }
-
-    .skill-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 600px) {
-    .ability-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .combat-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .health-panel {
-      grid-template-columns: 1fr;
-    }
-
-    .section-heading {
-      flex-direction: column;
-    }
-
-    .skill-row {
-      grid-template-columns:
-        24px minmax(120px, 1fr) 40px;
-    }
-
-    .passive {
-      display: none;
-    }
-  }
-</style>
+<ItemDetailsDialog {character} item={selectedItem} onClose={() => selectedItem = null} />

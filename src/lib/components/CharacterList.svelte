@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { StoredCharacter } from "../models/stored-character";
   import { createCharacterSummary } from "../characters/character-summary";
+  import { getActorPortraitSrc } from "../assets/image-resolver";
 
   export let characters: StoredCharacter[];
   export let loading: boolean;
@@ -104,7 +105,14 @@
           on:click={() => onOpen(character)}
         >
           <div class="portrait">
-            {getInitials(character.name)}
+            {#if getActorPortraitSrc(character)}
+              <img
+                src={getActorPortraitSrc(character)}
+                alt={`${character.name} portrait`}
+              />
+            {:else}
+              {getInitials(character.name)}
+            {/if}
           </div>
 
           <div class="character-details">
@@ -254,8 +262,15 @@
     border: 2px solid #806c48;
     border-radius: 50%;
     background: #302c26;
+    overflow: hidden;
     font-size: 1.4rem;
     font-weight: 700;
+  }
+
+  .portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .character-details {
