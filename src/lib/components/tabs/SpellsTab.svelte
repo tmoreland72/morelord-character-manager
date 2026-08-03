@@ -1,6 +1,4 @@
 <script lang="ts">
-  import TidyIcon from "../TidyIcon.svelte";
-  import { expandIcon, savingThrowMarkerIcon, searchIcon } from "../../icons/tidy-icons";
   import type { FoundryActorItem } from "../../models/foundry-actor";
   import type { StoredCharacter } from "../../models/stored-character";
   import { getItemImageSrc } from "../../assets/image-resolver";
@@ -235,6 +233,21 @@
     return `${remaining} / ${max}`;
   }
 
+  function hasItemDetails(item: FoundryActorItem): boolean {
+    const description = asRecord(item.system?.description)?.value;
+
+    return (
+      typeof description === "string" &&
+      description.trim().length > 0
+    );
+  }
+
+  function openItemDetails(item: FoundryActorItem): void {
+    if (hasItemDetails(item)) {
+      selectedItem = item;
+    }
+  }
+
   function matchesFilters(item: FoundryActorItem): boolean {
     const query = searchText.trim().toLocaleLowerCase();
 
@@ -294,7 +307,7 @@
 <section class="tidy-spellbook" aria-label="Spellbook">
   <div class="spell-toolbar">
     <label class="spell-search">
-      <TidyIcon icon={searchIcon} />
+      <span aria-hidden="true">⌕</span>
       <input
         type="search"
         bind:value={searchText}
@@ -332,14 +345,14 @@
         <section class="spell-group" class:ritual={group.tone === "ritual"} class:cantrip={group.tone === "cantrip"}>
           <header class="spell-level-header">
             <div class="level-title">
-              <span class="collapse-mark" aria-hidden="true"><TidyIcon icon={expandIcon} /></span>
+              <span class="collapse-mark" aria-hidden="true">⌄</span>
               <strong>{group.label}</strong>
               <span class="level-count">{group.spells.length}</span>
             </div>
 
             {#if getSlotSummary(group.level)}
               <div class="slot-summary" title="Remaining spell slots">
-                <span class="slot-pip" aria-hidden="true"><TidyIcon icon={savingThrowMarkerIcon} /></span>
+                <span class="slot-pip" aria-hidden="true">◆</span>
                 {getSlotSummary(group.level)}
               </div>
             {/if}
@@ -355,31 +368,31 @@
 
           <div class="spell-list">
             {#each group.spells as spell}
-              <button
-                type="button"
-                class="spell-row detail-trigger"
-                class:unprepared={!isPrepared(spell)}
-                aria-label={`View details for ${spell.name}`}
-                on:click={() => selectedItem = spell}
-              >
-                <div class="spell-primary">
-                  <div class="spell-icon">
+              <article class="spell-row" class:unprepared={!isPrepared(spell)}>
+                <button
+                  type="button"
+                  class="spell-primary item-details-button"
+                  disabled={!hasItemDetails(spell)}
+                  aria-label={`View details for ${spell.name}`}
+                  on:click={() => openItemDetails(spell)}
+                >
+                  <span class="spell-icon">
                     {#if getItemImageSrc(character, spell)}
                       <img src={getItemImageSrc(character, spell)} alt="" />
                     {:else}
                       <span>{spell.name.charAt(0).toUpperCase()}</span>
                     {/if}
-                  </div>
+                  </span>
 
-                  <div class="spell-name-block">
+                  <span class="spell-name-block">
                     <strong>{spell.name}</strong>
                     <small>
                       {getSchool(spell)}
                       {#if isAlwaysPrepared(spell)} · Always Prepared{/if}
                       {#if isRitual(spell)} · Ritual{/if}
                     </small>
-                  </div>
-                </div>
+                  </span>
+                </button>
 
                 <div class="spell-cell components" title="Components">
                   {getComponents(spell)}
@@ -388,7 +401,7 @@
                 <div class="spell-cell target" title="Target">{getTarget(spell)}</div>
                 <div class="spell-cell" title="Range">{getRange(spell)}</div>
                 <div class="spell-cell roll" title="Roll">{getRoll(spell)}</div>
-              </button>
+              </article>
             {/each}
           </div>
         </section>
@@ -396,6 +409,12 @@
     </div>
   {/if}
 </section>
+
+<ItemDetailsDialog
+  {character}
+  item={selectedItem}
+  onClose={() => selectedItem = null}
+/>
 
 <style>
   .tidy-spellbook {
@@ -478,18 +497,18 @@
     grid-template-columns: minmax(240px, 1fr) auto minmax(440px, 42%);
     min-height: var(--tidy-section-height);
     align-items: center;
-    background: var(--tidy-section-spell);
-    color: var(--tidy-section-text);
+    background: var(--tidy-dark-red);
+    color: var(--tidy-font-bright-white);
     font-size: var(--tidy-font-size-sm);
     text-transform: uppercase;
   }
 
   .spell-group.ritual .spell-level-header {
-    background: var(--tidy-section-ritual);
+    background: #07547e;
   }
 
   .spell-group.cantrip .spell-level-header {
-    background: var(--tidy-section-cantrip);
+    background: #740019;
   }
 
   .level-title,
@@ -506,7 +525,7 @@
   }
 
   .level-count {
-    color: var(--tidy-section-text-muted);
+    color: rgba(255, 255, 255, 0.75);
   }
 
   .slot-summary {
@@ -528,7 +547,7 @@
     display: grid;
     place-items: center;
     padding: 0 0.35rem;
-    border-left: 1px solid var(--tidy-section-divider);
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .spell-list {
@@ -536,13 +555,6 @@
   }
 
   .spell-row {
-    width: 100%;
-    padding: 0;
-    border: 0;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
     display: grid;
     grid-template-columns: minmax(240px, 1fr) minmax(440px, 42%);
     min-height: var(--tidy-row-height);
@@ -680,6 +692,3 @@
     }
   }
 </style>
-
-<ItemDetailsDialog {character} item={selectedItem} onClose={() => selectedItem = null} />
-

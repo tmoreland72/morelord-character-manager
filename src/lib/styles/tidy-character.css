@@ -421,3 +421,20 @@
         padding: 0.6rem 0;
     }
 }
+
+.character-tab .trait-item-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.character-tab .tool-row .item-details-button {
+  overflow: hidden;
+}
+
+.character-tab .tool-row .item-details-button strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -342,19 +342,6 @@
     var(--tidy-surface-row-alt);
 }
 
-.inventory-tab .item-row-clickable {
-  cursor: pointer;
-}
-
-.inventory-tab .item-row-clickable:hover {
-  background: var(--tidy-surface-hover);
-}
-
-.inventory-tab .item-row-clickable:focus-visible {
-  outline: 2px solid var(--tidy-accent-gold);
-  outline-offset: -2px;
-}
-
 .inventory-tab .item-row > span {
   display: grid;
   height: 100%;
@@ -667,24 +654,4 @@
     .inventory-footer {
     grid-template-columns: 1fr;
   }
-}
-.inventory-tab .item-details-button {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.inventory-tab .item-details-button:hover strong,
-.inventory-tab .item-details-button:focus-visible strong {
-  text-decoration: underline;
-}
-
-.inventory-tab .item-details-button:focus-visible {
-  outline: 2px solid var(--tidy-focus-ring);
-  outline-offset: -2px;
 }

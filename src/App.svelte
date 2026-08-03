@@ -262,6 +262,13 @@
 <style>
   .app-shell {
     min-height: 100vh;
+    background:
+      radial-gradient(
+        circle at top,
+        var(--tidy-surface-dark) 0,
+        var(--tidy-background) 34rem
+      );
+    color: var(--tidy-text);
   }
 
   .app-header {
@@ -270,8 +277,13 @@
     justify-content: space-between;
     gap: 2rem;
     padding: 1.25rem 2rem;
-    border-bottom: 1px solid #3d3932;
-    background: #24211d;
+    border-bottom: 1px solid var(--tidy-border-gold);
+    background: linear-gradient(
+      180deg,
+      var(--tidy-surface-raised),
+      var(--tidy-surface-dark)
+    );
+    box-shadow: 0 0.35rem 1.1rem var(--tidy-shadow-color);
   }
 
   .app-title {
@@ -285,28 +297,31 @@
 
   h1 {
     margin-bottom: 0.2rem;
-    font-size: 1.6rem;
+    color: var(--tidy-text-bright);
+    font-family: var(--tidy-font-display);
+    font-size: 2rem;
+    letter-spacing: 0.025em;
   }
 
   .app-title p {
     margin-bottom: 0;
-    color: #aaa398;
+    color: var(--tidy-text-muted);
   }
 
   .header-button {
     flex: 0 0 auto;
     padding: 0.75rem 1.1rem;
-    border: 1px solid #806c48;
-    border-radius: 0.35rem;
-    background: #4d3927;
-    color: #ffffff;
+    border: 1px solid var(--tidy-proficient);
+    border-radius: var(--tidy-radius-medium);
+    background: var(--tidy-dark-red);
+    color: var(--tidy-text-bright);
     font: inherit;
     font-weight: 600;
     cursor: pointer;
   }
 
   .header-button:hover:not(:disabled) {
-    background: #624a34;
+    background: var(--tidy-proficient);
   }
 
   .header-button:disabled {
@@ -332,7 +347,7 @@
   .message {
     margin-bottom: 1.5rem;
     padding: 1rem 1.25rem;
-    border-radius: 0.4rem;
+    border-radius: var(--tidy-radius-medium);
   }
 
   .message p {
@@ -340,8 +355,8 @@
   }
 
   .error-message {
-    border: 1px solid #954c4c;
-    background: #3a2020;
+    border: 1px solid var(--tidy-danger-border);
+    background: var(--tidy-danger-surface);
   }
 
   .error-message p {
@@ -349,8 +364,8 @@
   }
 
   .success-message {
-    border: 1px solid #537a52;
-    background: #203421;
+    border: 1px solid var(--tidy-success-border);
+    background: var(--tidy-success-surface);
   }
 
   @media (max-width: 600px) {

@@ -1,6 +1,4 @@
 <script lang="ts">
-  import TidyIcon from "../TidyIcon.svelte";
-  import { addIcon, attunementIcon, carryingCapacityIcon, expandIcon, favoriteIcon, filterIcon, moreOptionsIcon, searchIcon, settingsIcon, sortIcon } from "../../icons/tidy-icons";
   import type {
     FoundryActorItem
   } from "../../models/foundry-actor";
@@ -172,27 +170,6 @@
 
   function toggleEquipped(): void {
     equippedOnly = !equippedOnly;
-  }
-
-  function openItemDetails(
-    item: FoundryActorItem
-  ): void {
-    selectedItem = item;
-  }
-
-  function handleItemKeydown(
-    event: KeyboardEvent,
-    item: FoundryActorItem
-  ): void {
-    if (
-      event.key !== "Enter" &&
-      event.key !== " "
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-    openItemDetails(item);
   }
 
   function matchesFilters(
@@ -757,6 +734,29 @@
   }
 
 
+  function hasItemDetails(
+    item: FoundryActorItem
+  ): boolean {
+    const description = getNestedValue(
+      item.system,
+      "description",
+      "value"
+    );
+
+    return (
+      typeof description === "string" &&
+      description.trim().length > 0
+    );
+  }
+
+  function openItemDetails(
+    item: FoundryActorItem
+  ): void {
+    if (hasItemDetails(item)) {
+      selectedItem = item;
+    }
+  }
+
   function formatSignedNumber(
     value: number
   ): string {
@@ -801,11 +801,11 @@
       disabled
       title="Collapse sections"
     >
-      <TidyIcon icon={expandIcon} />
+      ⌄
     </button>
 
     <label class="search-field">
-      <TidyIcon icon={searchIcon} />
+      <span>⌕</span>
 
       <input
         type="search"
@@ -850,7 +850,7 @@
         class="toolbar-icon"
         disabled
       >
-        <TidyIcon icon={filterIcon} />
+        ▼
       </button>
 
       <button
@@ -858,7 +858,7 @@
         class="toolbar-icon"
         disabled
       >
-        <TidyIcon icon={sortIcon} />
+        ⇵
       </button>
 
       <button
@@ -866,7 +866,7 @@
         class="toolbar-icon"
         disabled
       >
-        <TidyIcon icon={settingsIcon} />
+        ⚙
       </button>
     </div>
   </div>
@@ -909,7 +909,7 @@
       ></div>
 
       <strong>
-        <TidyIcon icon={carryingCapacityIcon} />
+        ⚖
         {formatNumber(totalWeight)}
         /
         {carryingCapacity}
@@ -936,7 +936,7 @@
           <header class="group-header">
             <div class="group-title">
               <span class="group-toggle">
-                <TidyIcon icon={expandIcon} />
+                ⌄
               </span>
 
               <h3>
@@ -959,19 +959,19 @@
                 <span>Price</span>
                 <span>Quantity</span>
                 <span>Weight</span>
-                <span><TidyIcon icon={searchIcon} /></span>
-                <span><TidyIcon icon={addIcon} /></span>
+                <span>⌕</span>
+                <span>＋</span>
               {:else if group.id === "container"}
                 <span></span>
                 <span></span>
-                <span><TidyIcon icon={searchIcon} /></span>
-                <span><TidyIcon icon={addIcon} /></span>
+                <span>⌕</span>
+                <span>＋</span>
               {:else}
                 <span>Price</span>
                 <span>Quantity</span>
                 <span>Weight</span>
-                <span><TidyIcon icon={searchIcon} /></span>
-                <span><TidyIcon icon={addIcon} /></span>
+                <span>⌕</span>
+                <span>＋</span>
               {/if}
             </div>
           </header>
@@ -984,21 +984,22 @@
               {@const weight =
                 getWeightParts(item)}
 
-              <article class="item-row item-row-clickable">
+              <article class="item-row">
                 <button
                   type="button"
                   class="item-identity item-details-button"
+                  disabled={!hasItemDetails(item)}
                   aria-label={`View details for ${item.name}`}
                   on:click={() => openItemDetails(item)}
                 >
-                  <div class="item-image">
+                  <span class="item-image">
                     {#if getItemImageSrc(character, item)}
                       <img
                         src={getItemImageSrc(character, item) ?? ""}
                         alt=""
                       />
                     {/if}
-                  </div>
+                  </span>
 
                   <strong>
                     {item.name}
@@ -1060,11 +1061,11 @@
                 {/if}
 
                 <span class="item-action">
-                  <TidyIcon icon={favoriteIcon} />
+                  ♡
                 </span>
 
                 <span class="item-action">
-                  <TidyIcon icon={moreOptionsIcon} />
+                  ⋮
                 </span>
               </article>
             {/each}
@@ -1076,7 +1077,7 @@
 
   <footer class="inventory-footer">
     <div class="attunement-box">
-      <TidyIcon icon={attunementIcon} /> 0 / 3 Attuned
+      ⚙ 0 / 3 Attuned
     </div>
 
     <div class="currency-grid">
@@ -1101,4 +1102,9 @@
   </footer>
 </section>
 
-<ItemDetailsDialog {character} item={selectedItem} onClose={() => selectedItem = null} />
+
+<ItemDetailsDialog
+  {character}
+  item={selectedItem}
+  onClose={() => selectedItem = null}
+/>

@@ -177,38 +177,42 @@
 
   .section-heading h2 {
     margin-bottom: 0.25rem;
+    color: var(--tidy-text-bright);
+    font-family: var(--tidy-font-display);
+    font-size: 1.7rem;
+    letter-spacing: 0.025em;
   }
 
   .section-heading p {
     margin-bottom: 0;
-    color: #aaa398;
+    color: var(--tidy-text-muted);
   }
 
   .empty-state {
     padding: 3rem;
-    border: 1px dashed #514c43;
-    border-radius: 0.5rem;
+    border: 1px dashed var(--tidy-border-strong);
+    border-radius: var(--tidy-radius-medium);
     text-align: center;
-    color: #aaa398;
+    color: var(--tidy-text-muted);
   }
 
   .empty-state h3 {
-    color: #ece7dc;
+    color: var(--tidy-text);
   }
 
   .import-button {
     margin-top: 0.5rem;
     padding: 0.75rem 1.1rem;
-    border: 1px solid #806c48;
-    border-radius: 0.35rem;
-    background: #4d3927;
-    color: #ffffff;
+    border: 1px solid var(--tidy-proficient);
+    border-radius: var(--tidy-radius-medium);
+    background: var(--tidy-dark-red);
+    color: var(--tidy-text-bright);
     font-weight: 600;
     cursor: pointer;
   }
 
   .import-button:hover {
-    background: #624a34;
+    background: var(--tidy-proficient);
   }
 
   .character-grid {
@@ -222,10 +226,11 @@
     position: relative;
     display: flex;
     min-width: 0;
-    border: 1px solid #454038;
-    border-radius: 0.5rem;
-    background: #24211d;
+    border: 1px solid var(--tidy-border);
+    border-radius: var(--tidy-radius-medium);
+    background: var(--tidy-surface-dark);
     overflow: hidden;
+    box-shadow: 0 0.3rem 0.9rem var(--tidy-shadow-color);
   }
 
   .card-open-button {
@@ -243,13 +248,13 @@
   }
 
   .card-open-button:hover {
-    background: #2d2924;
+    background: var(--tidy-surface-raised);
   }
 
   .card-open-button:focus-visible,
   .delete-button:focus-visible,
   .import-button:focus-visible {
-    outline: 2px solid #c09a5b;
+    outline: 2px solid var(--tidy-active-tab);
     outline-offset: -2px;
   }
 
@@ -259,9 +264,9 @@
     height: 76px;
     flex: 0 0 auto;
     place-items: center;
-    border: 2px solid #806c48;
+    border: 2px solid var(--tidy-border-gold);
     border-radius: 50%;
-    background: #302c26;
+    background: var(--tidy-surface);
     overflow: hidden;
     font-size: 1.4rem;
     font-weight: 700;
@@ -279,7 +284,10 @@
 
   .character-details h3 {
     margin-bottom: 0.35rem;
-    font-size: 1.25rem;
+    color: var(--tidy-text-bright);
+    font-family: var(--tidy-font-display);
+    font-size: 1.45rem;
+    letter-spacing: 0.02em;
   }
 
   .character-details p {
@@ -292,7 +300,7 @@
 
   .secondary-line,
   .imported-date {
-    color: #aaa398;
+    color: var(--tidy-text-muted);
   }
 
   .secondary-line {
@@ -308,15 +316,15 @@
     align-self: flex-start;
     margin: 0.75rem 0.75rem 0 0;
     padding: 0.4rem 0.55rem;
-    border: 1px solid #69504b;
+    border: 1px solid var(--tidy-proficient);
     border-radius: 0.3rem;
-    background: #352725;
-    color: #d9b8b2;
+    background: color-mix(in srgb, var(--tidy-dark-red) 58%, var(--tidy-surface-dark));
+    color: var(--tidy-text);
     cursor: pointer;
   }
 
   .delete-button:hover {
-    background: #4a2e2a;
+    background: var(--tidy-dark-red);
   }
 
   @media (max-width: 600px) {

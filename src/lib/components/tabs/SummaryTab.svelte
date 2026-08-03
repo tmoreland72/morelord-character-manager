@@ -1,7 +1,4 @@
 <script lang="ts">
-  import TidyIcon from "../TidyIcon.svelte";
-  import type { TidyIcon as TidyIconDefinition } from "../../icons/tidy-icons";
-  import { armorIcon, arrowRightIcon, languagesIcon, proficiencyFullIcon, proficiencyHalfIcon, proficiencyNoneIcon, savingThrowsIcon, sizeIcon, skillsIcon, specialTraitsIcon, toolsIcon, weaponsIcon } from "../../icons/tidy-icons";
   import type {
     FoundryActorItem
   } from "../../models/foundry-actor";
@@ -14,12 +11,12 @@
     getItemImageSrc
   } from "../../assets/image-resolver";
 
-  import ItemDetailsDialog from "../ItemDetailsDialog.svelte";
-
   import {
     deriveCharacterValues,
     formatSignedNumber
   } from "../../characters/derived-character";
+
+  import ItemDetailsDialog from "../ItemDetailsDialog.svelte";
 
   export let character: StoredCharacter;
 
@@ -31,7 +28,7 @@
 
   interface TraitRow {
     label: string;
-    icon: TidyIconDefinition;
+    icon: string;
     values: string[];
   }
 
@@ -255,31 +252,31 @@
     return [
       {
         label: "Size",
-        icon: sizeIcon,
+        icon: "▣",
         values: [getSizeLabel()]
       },
       {
         label: "Speed",
-        icon: arrowRightIcon,
+        icon: "➤",
         values: [getSpeedLabel()]
       },
       {
         label: "Armor",
-        icon: armorIcon,
+        icon: "⬟",
         values: getTraitValues(
           "armorProf"
         )
       },
       {
         label: "Weapons",
-        icon: weaponsIcon,
+        icon: "⚔",
         values: getTraitValues(
           "weaponProf"
         )
       },
       {
         label: "Languages",
-        icon: languagesIcon,
+        icon: "☁",
         values: getTraitValues(
           "languages"
         )
@@ -382,22 +379,45 @@
     )[0];
   }
 
-  function getProficiencyIcon(
+  function getProficiencySymbol(
     proficiency: number
-  ): TidyIconDefinition {
+  ): string {
     if (proficiency >= 2) {
-      return specialTraitsIcon;
+      return "✹";
     }
 
     if (proficiency >= 1) {
-      return proficiencyFullIcon;
+      return "●";
     }
 
     if (proficiency > 0) {
-      return proficiencyHalfIcon;
+      return "◐";
     }
 
-    return proficiencyNoneIcon;
+    return "○";
+  }
+
+  function hasItemDetails(
+    item: FoundryActorItem
+  ): boolean {
+    const description = getNestedValue(
+      item.system,
+      "description",
+      "value"
+    );
+
+    return (
+      typeof description === "string" &&
+      description.trim().length > 0
+    );
+  }
+
+  function openItemDetails(
+    item: FoundryActorItem
+  ): void {
+    if (hasItemDetails(item)) {
+      selectedItem = item;
+    }
   }
 
   function formatLabel(
@@ -423,7 +443,7 @@
       <header class="panel-header">
         <div>
           <span class="header-icon">
-            <TidyIcon icon={skillsIcon} />
+            ▣
           </span>
 
           <h3>Skills</h3>
@@ -446,7 +466,9 @@
               }
               class="proficiency-marker"
             >
-              <TidyIcon icon={getProficiencyIcon(skill.proficiency)} />
+              {getProficiencySymbol(
+                skill.proficiency
+              )}
             </span>
 
             <span class="skill-ability">
@@ -478,7 +500,7 @@
       <header class="panel-header">
         <div>
           <span class="header-icon">
-            <TidyIcon icon={toolsIcon} />
+            ⚒
           </span>
 
           <h3>Tools</h3>
@@ -494,9 +516,9 @@
       {:else}
         <div class="tool-list">
           {#each tools as tool}
-            <div class="tool-row detail-trigger" role="button" tabindex="0" on:click={() => selectedItem = tool} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") selectedItem = tool; }}>
+            <div class="tool-row">
               <span class="proficiency-marker trained">
-                <TidyIcon icon={proficiencyFullIcon} />
+                ●
               </span>
 
               <span class="tool-item-image">
@@ -514,9 +536,17 @@
                 {getToolAbility(tool)}
               </span>
 
-              <strong>
-                {tool.name}
-              </strong>
+              <button
+                type="button"
+                class="item-details-button"
+                disabled={!hasItemDetails(tool)}
+                aria-label={`View details for ${tool.name}`}
+                on:click={() => openItemDetails(tool)}
+              >
+                <strong>
+                  {tool.name}
+                </strong>
+              </button>
 
               <span class="tool-modifier">
                 {formatSignedNumber(
@@ -535,7 +565,7 @@
       <header class="panel-header">
         <div>
           <span class="header-icon">
-            <TidyIcon icon={savingThrowsIcon} />
+            ◆
           </span>
 
           <h3>Saving Throws</h3>
@@ -553,7 +583,9 @@
               }
               class="proficiency-marker"
             >
-              <TidyIcon icon={save.proficient ? proficiencyFullIcon : proficiencyNoneIcon} />
+              {save.proficient
+                ? "●"
+                : "○"}
             </span>
 
             <strong>
@@ -578,7 +610,7 @@
           type="button"
           disabled
         >
-          <TidyIcon icon={specialTraitsIcon} /> Special Traits
+          ★ Special Traits
         </button>
       </header>
 
@@ -589,23 +621,31 @@
               Class
             </strong>
 
-            <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => selectedItem = classItem} on:keydown={(event) => { if (event.key === "Enter" || event.key === " ") selectedItem = classItem; }}>
-              <span class="item-icon">
-                {#if getItemImageSrc(character, classItem)}
-                  <img
-                    src={getItemImageSrc(character, classItem)}
-                    alt=""
-                  />
-                {:else}
-                  {classItem.name
-                    .charAt(0)
-                    .toUpperCase()}
-                {/if}
-              </span>
+            <div class="trait-value">
+              <button
+                type="button"
+                class="trait-item-link item-details-button"
+                disabled={!hasItemDetails(classItem)}
+                aria-label={`View details for ${classItem.name}`}
+                on:click={() => openItemDetails(classItem)}
+              >
+                <span class="item-icon">
+                  {#if getItemImageSrc(character, classItem)}
+                    <img
+                      src={getItemImageSrc(character, classItem)}
+                      alt=""
+                    />
+                  {:else}
+                    {classItem.name
+                      .charAt(0)
+                      .toUpperCase()}
+                  {/if}
+                </span>
 
-              <span class="linked-value">
-                {classItem.name}
-              </span>
+                <strong class="linked-value">
+                  {classItem.name}
+                </strong>
+              </button>
 
               <span>
                 · Level
@@ -622,24 +662,32 @@
             Species
           </strong>
 
-          <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => species && (selectedItem = species)} on:keydown={(event) => { if (species && (event.key === "Enter" || event.key === " ")) selectedItem = species; }}>
+          <div class="trait-value">
             {#if species}
-              <span class="item-icon">
-                {#if getItemImageSrc(character, species)}
-                  <img
-                    src={getItemImageSrc(character, species)}
-                    alt=""
-                  />
-                {:else}
-                  {species.name
-                    .charAt(0)
-                    .toUpperCase()}
-                {/if}
-              </span>
+              <button
+                type="button"
+                class="trait-item-link item-details-button"
+                disabled={!hasItemDetails(species)}
+                aria-label={`View details for ${species.name}`}
+                on:click={() => openItemDetails(species)}
+              >
+                <span class="item-icon">
+                  {#if getItemImageSrc(character, species)}
+                    <img
+                      src={getItemImageSrc(character, species)}
+                      alt=""
+                    />
+                  {:else}
+                    {species.name
+                      .charAt(0)
+                      .toUpperCase()}
+                  {/if}
+                </span>
 
-              <span class="linked-value">
-                {species.name}
-              </span>
+                <strong class="linked-value">
+                  {species.name}
+                </strong>
+              </button>
             {:else}
               <span>—</span>
             {/if}
@@ -653,7 +701,7 @@
 
           <div class="trait-value">
             <span class="trait-arrow">
-              <TidyIcon icon={arrowRightIcon} />
+              ↪
             </span>
 
             <span>
@@ -667,24 +715,32 @@
             Background
           </strong>
 
-          <div class="trait-value detail-trigger" role="button" tabindex="0" on:click={() => background && (selectedItem = background)} on:keydown={(event) => { if (background && (event.key === "Enter" || event.key === " ")) selectedItem = background; }}>
+          <div class="trait-value">
             {#if background}
-              <span class="item-icon">
-                {#if getItemImageSrc(character, background)}
-                  <img
-                    src={getItemImageSrc(character, background)}
-                    alt=""
-                  />
-                {:else}
-                  {background.name
-                    .charAt(0)
-                    .toUpperCase()}
-                {/if}
-              </span>
+              <button
+                type="button"
+                class="trait-item-link item-details-button"
+                disabled={!hasItemDetails(background)}
+                aria-label={`View details for ${background.name}`}
+                on:click={() => openItemDetails(background)}
+              >
+                <span class="item-icon">
+                  {#if getItemImageSrc(character, background)}
+                    <img
+                      src={getItemImageSrc(character, background)}
+                      alt=""
+                    />
+                  {:else}
+                    {background.name
+                      .charAt(0)
+                      .toUpperCase()}
+                  {/if}
+                </span>
 
-              <span class="linked-value">
-                {background.name}
-              </span>
+                <strong class="linked-value">
+                  {background.name}
+                </strong>
+              </button>
             {:else}
               <span>—</span>
             {/if}
@@ -695,7 +751,7 @@
           <div class="trait-row">
             <strong class="trait-label">
               <span class="trait-label-icon">
-                <TidyIcon icon={row.icon} />
+                {row.icon}
               </span>
 
               {row.label}
@@ -721,4 +777,9 @@
   </div>
 </div>
 
-<ItemDetailsDialog {character} item={selectedItem} onClose={() => selectedItem = null} />
+
+<ItemDetailsDialog
+  {character}
+  item={selectedItem}
+  onClose={() => selectedItem = null}
+/>

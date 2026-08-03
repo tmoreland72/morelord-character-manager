@@ -49,3 +49,36 @@
 .detail-empty { padding: 1.5rem; color: var(--tidy-font-grey); text-align: center; }
 .detail-trigger { cursor: pointer; }
 .detail-trigger:focus-visible { outline: 2px solid var(--tidy-font-gold); outline-offset: -2px; }
+
+
+/* Shared clickable detail-name treatment. */
+.item-details-button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.item-details-button:not(:disabled) {
+  cursor: pointer;
+}
+
+.item-details-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.item-details-button:not(:disabled):hover strong,
+.item-details-button:not(:disabled):focus-visible strong {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.item-details-button:not(:disabled):focus-visible {
+  outline: 2px solid var(--tidy-focus-ring);
+  outline-offset: -2px;
+}

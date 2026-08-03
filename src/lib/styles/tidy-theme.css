@@ -19,17 +19,6 @@
   --tidy-active-tab: #d37ca9;
 
   /*
-   * Section accents
-   */
-
-  --tidy-section-spell: var(--tidy-dark-red);
-  --tidy-section-cantrip: var(--tidy-dark-red);
-  --tidy-section-ritual: #07547e;
-  --tidy-section-text: var(--tidy-font-bright-white);
-  --tidy-section-text-muted: rgba(255, 255, 255, 0.75);
-  --tidy-section-divider: rgba(255, 255, 255, 0.2);
-
-  /*
    * Backgrounds and surfaces
    */
 
@@ -107,6 +96,16 @@
 
   --tidy-radius-small: 0.12rem;
   --tidy-radius-medium: 0.2rem;
+
+  /*
+   * Application chrome and status surfaces
+   */
+
+  --tidy-shadow-color: rgba(0, 0, 0, 0.48);
+  --tidy-danger-border: #9b4054;
+  --tidy-danger-surface: #34131b;
+  --tidy-success-border: #55795b;
+  --tidy-success-surface: #172a1c;
 }
 
 .tidy-sheet {
@@ -147,8 +146,4 @@
   font-size: 0.77rem;
   font-weight: 600;
   line-height: 1;
-}
-:root {
-  --tidy-overlay-backdrop: rgb(0 0 0 / 72%);
-  --tidy-shadow-elevated: 0 18px 55px rgb(0 0 0 / 55%);
 }
